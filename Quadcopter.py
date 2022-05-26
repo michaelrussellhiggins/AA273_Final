@@ -182,5 +182,3 @@ plt.xlabel('Time (sec)')
 plt.ylabel('Position in x (m)')
 plt.legend()
 plt.show()
-
-print("Test!")
