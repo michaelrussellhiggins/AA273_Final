@@ -1,27 +1,23 @@
 # Python Packages
-
 import numpy as np
 import random
 from scipy.stats import multivariate_normal
 import matplotlib.pyplot as plt
 
 # Simulation settings
-
 dt = 0.01   # Simulation time step - sec
 t_final = 1   # Simulation run time - sec
 steps = round(t_final/dt)
 t = np.zeros(steps+1)   # Initializes time vector
 
-
 # Noise
-
 Q_t = 0.001*np.identity(9)   # Process noise
 R_t = 0.001*np.identity(3)   # Measurement noise
 
-
 # Initialization
-
 # Dynamics
+m = 3
+n = 9
 
 m_Q = 5
 m_p = 2
@@ -29,11 +25,8 @@ I_yy = 0.01
 grav = 9.81
 l = 1
 
-m = 3
-n = 9
-
-state = np.zeros((n, steps+1))
-state[8, 0] = m_p
+state_initial = np.zeros(n)
+state_initial[n-1] = m_p  # Starts at origin with flat orientation and mass hanging straight down
 
 # List of states-
 # 0 - x
@@ -46,100 +39,129 @@ state[8, 0] = m_p
 # 7 - phidot
 # 8 - mp
 
-
 # Control
-
-# The initial control output is currently set to a hovering thrust
-
-thrust = np.zeros(steps+1)   # Thrust vector
-tau = np.zeros(steps+1)   # Torque vector
-
-thrust[0] = (m_Q + m_p)*grav   # Initial thrust
-tau[0] = 0   # Initial torque
-
-# Measurement
-
-y = np.zeros((3, steps+1))   # Measurement vector
-
-y[:, 0] = np.NaN   # Sets measurements at t=0 to not plot since they do not exist
+thrust_initial = (m_Q + m_p)*grav  # The initial control output is currently set to a hovering thrust
+tau_initial = 0
 
 # EKF Initialization
-
 mu_initial = np.zeros(n)   # Mean of initial guess for state
-mu_initial[n-1] = 1;   # Guesses that the quadcopter starts stationary at the origin and has a payload of mass 1 kg
+mu_initial[n-1] = 1   # Guesses that the quadcopter starts stationary at the origin and has a payload of mass 1 kg
 Sigma_initial = 0.1*np.identity(9)   # Covariance of initial guess for state
 
-distribution = multivariate_normal(mu_initial, Sigma_initial)   # Define distribution from which to sample initial
-# guess for EKF
+def Simulation(steps, dt, state_initial, thrust_initial, tau_initial, mu_initial, Sigma_initial):
 
-mu_t_t = np.zeros((n, steps+1))   # Mean update vector
-mu_t_t[:, 0] = distribution.rvs()   # Initial guess for state
+    state = np.zeros((n, steps + 1))
+    state[:, 0] = state_initial
 
-Sigma_t_t = np.zeros((n, n, steps+1))   # Prediction update vector
-Sigma_t_t[:, :, 0] = Sigma_initial   # Initial guess for covariance
+    thrust = np.zeros(steps + 1)  # Thrust vector
+    tau = np.zeros(steps + 1)  # Torque vector
+    thrust[0] = thrust_initial  # Initial thrust
+    tau[0] = tau_initial  # Initial torque
 
-f = np.zeros(n)   # For mean prediction step
-g = np.zeros(m)   # For mean update step
+    y = np.zeros((3, steps + 1))  # Measurement vector
+    y[:, 0] = np.NaN  # Sets measurements at t=0 to not plot since they do not exist
 
-A_t = np.zeros((n, n))   # Dynamics Jacobian
-C_t = np.zeros((m, n))   # Measurement Jacobian
+    distribution = multivariate_normal(mu_initial,Sigma_initial)  # Define distribution from which to sample initial guess for EKF
 
-upper_conf_int = np.zeros((n, steps+1))   # Vector for upper confidence interval
-lower_conf_int = np.zeros((n, steps+1))   # Vector for lower confidence interval
+    mu_t_t = np.zeros((n, steps + 1))  # Mean update vector
+    mu_t_t[:, 0] = distribution.rvs()  # Initial guess for state
 
-for j in range(n):
-    upper_conf_int[j, 0] = mu_t_t[j, 0] + 1.96 * np.sqrt(Sigma_t_t[j, j, 0])
-    lower_conf_int[j, 0] = mu_t_t[j, 0] - 1.96 * np.sqrt(Sigma_t_t[j, j, 0])
+    Sigma_t_t = np.zeros((n, n, steps + 1))  # Prediction update vector
+    Sigma_t_t[:, :, 0] = Sigma_initial  # Initial guess for covariance
 
-# Simulation loop
+    upper_conf_int = np.zeros((n, steps + 1))  # Vector for upper confidence interval
+    lower_conf_int = np.zeros((n, steps + 1))  # Vector for lower confidence interval
 
-for i in range(steps):
+    for j in range(n):
+        upper_conf_int[j, 0] = mu_t_t[j, 0] + 1.96 * np.sqrt(Sigma_t_t[j, j, 0])
+        lower_conf_int[j, 0] = mu_t_t[j, 0] - 1.96 * np.sqrt(Sigma_t_t[j, j, 0])
 
-    # Moves simulation forward by one time step
+    for i in range(steps):
 
-    t[i+1] = dt*i
+        t[i + 1] = dt * i  # Moves simulation forward by one time step
 
-    # Control
+        # Control
+        [thrust, tau] = Control(state, thrust, tau, i)
 
-    # The control output is currently set to maintain a level hover assuming the quadcopter stays unperturbed
+        # Dynamics
+        state = Dynamics(state, thrust, tau, i)
 
-    thrust[i+1] = (m_Q + m_p)*grav
-    tau[i+1] = 0
+        # Measurement
+        y = Measure(state, y, i)
 
-    # Dynamics
+        # Jacobians
+        A_t = Dynamics_Jacobian(mu_t_t, thrust, i)
+        C_t = Measurement_Jacobian()
+
+        # EKF
+        [mu_t_plus_t, Sigma_t_plus_t] = EKF_Predict(mu_t_t, Sigma_t_t, thrust, tau, A_t, i)
+        [mu_t_t, Sigma_t_t] = EKF_Update(mu_t_t, Sigma_t_t, mu_t_plus_t, Sigma_t_plus_t, C_t, y, i)
+
+        # Confidence Intervals
+
+        [upper_conf_int, lower_conf_int] = Confidence(upper_conf_int, lower_conf_int, mu_t_t, Sigma_t_t, i)
+
+    return state, thrust, tau, y, mu_t_t, Sigma_t_t, upper_conf_int, lower_conf_int
+
+def Control(state, thrust, tau, i):
+
+    thrust[i + 1] = (m_Q + m_p) * grav + i*dt*10
+    tau[i + 1] = 0
+
+    return thrust, tau
+
+def Dynamics(state, thrust, tau, i):
 
     state[0, i + 1] = state[0, i] + dt * state[4, i] + random.gauss(0, Q_t[0, 0])
     state[1, i + 1] = state[1, i] + dt * state[5, i] + random.gauss(0, Q_t[1, 1])
     state[2, i + 1] = state[2, i] + dt * state[6, i] + random.gauss(0, Q_t[2, 2])
     state[3, i + 1] = state[3, i] + dt * state[7, i] + random.gauss(0, Q_t[3, 3])
-    state[4, i + 1] = state[4, i] + dt * thrust[i] * np.sin(state[2, i]) * (m_Q + state[8, i] * (np.cos(state[3, i]))**2) / (m_Q * (m_Q + state[8, i])) + dt * thrust[i]*np.cos(state[2, i]) * (state[8, i] * np.sin(state[3, i]) * np.cos(state[3, i])) / (m_Q*(m_Q + state[8, i])) + dt * state[8, i] * l * (state[7, i])**2 * np.sin(state[3, i]) / (m_Q + state[8,i]) + random.gauss(0, Q_t[4, 4])
-    state[5, i + 1] = state[5, i] + dt * thrust[i] * np.cos(state[2, i]) * (m_Q + state[8, i] * (np.sin(state[3, i]))**2) / (m_Q * (m_Q + state[8, i])) + dt * thrust[i]*np.sin(state[2, i]) * (state[8, i] * np.sin(state[3, i]) * np.cos(state[3, i])) / (m_Q*(m_Q + state[8, i])) - dt * state[8, i] * l * (state[7, i])**2 * np.sin(state[3, i]) / (m_Q + state[8,i]) - dt*grav + random.gauss(0, Q_t[4, 4])
+    state[4, i + 1] = state[4, i] + dt * thrust[i] * np.sin(state[2, i]) * (m_Q + state[8, i] * (np.cos(state[3, i])) ** 2) / (m_Q * (m_Q + state[8, i])) + dt * thrust[i] * np.cos(state[2, i]) * (state[8, i] * np.sin(state[3, i]) * np.cos(state[3, i])) / (m_Q * (m_Q + state[8, i])) + dt * state[8, i] * l * (state[7, i]) ** 2 * np.sin(state[3, i]) / (m_Q + state[8, i]) + random.gauss(0,Q_t[4, 4])
+    state[5, i + 1] = state[5, i] + dt * thrust[i] * np.cos(state[2, i]) * (m_Q + state[8, i] * (np.sin(state[3, i])) ** 2) / (m_Q * (m_Q + state[8, i])) + dt * thrust[i] * np.sin(state[2, i]) * (state[8, i] * np.sin(state[3, i]) * np.cos(state[3, i])) / (m_Q * (m_Q + state[8, i])) - dt * state[8, i] * l * (state[7, i]) ** 2 * np.sin(state[3, i]) / (m_Q + state[8, i]) - dt * grav + random.gauss(0, Q_t[5, 5])
     state[6, i + 1] = state[0, i] + dt * tau[i] / I_yy + random.gauss(0, Q_t[6, 6])
-    state[7, i + 1] = state[1, i] - dt * thrust[i] * np.sin(state[3,i] - state[2,i])/(m_Q * l) + random.gauss(0, Q_t[7, 7])
+    state[7, i + 1] = state[1, i] - dt * thrust[i] * np.sin(state[3, i] - state[2, i]) / (m_Q * l) + random.gauss(0,Q_t[7, 7])
     state[8, i + 1] = state[8, i]
 
-    # Measurement
+    return state
 
-    y[0, i + 1] = state[0, i+1] + random.gauss(0, R_t[0, 0])
-    y[1, i + 1] = state[1, i+1] + random.gauss(0, R_t[1, 1])
-    y[2, i + 1] = state[2, i+1] + random.gauss(0, R_t[2, 2])
+def Measure(state, y, i):
 
-    # Jacobians
+    y[0, i + 1] = state[0, i + 1] + random.gauss(0, R_t[0, 0])
+    y[1, i + 1] = state[1, i + 1] + random.gauss(0, R_t[1, 1])
+    y[2, i + 1] = state[2, i + 1] + random.gauss(0, R_t[2, 2])
+
+    return y
+
+def Dynamics_Jacobian(mu_t_t, thrust, i):
+
+    A_t = np.zeros((n, n))
 
     A_t[0:9, 0:9] = np.identity(n)
-    A_t[0:4, 4:8] = dt*np.identity(4)
+    A_t[0:4, 4:8] = dt * np.identity(4)
     A_t[4, 2] = dt * thrust[i] / (2 * m_Q * (mu_t_t[8, i] + m_Q)) * (mu_t_t[8, i] * np.cos(2 * mu_t_t[3, i] + mu_t_t[2, i]) + (mu_t_t[8, i] + 2 * m_Q) * np.cos(mu_t_t[2, i]))
-    A_t[4, 3] = dt * mu_t_t[8, i] / (m_Q * (mu_t_t[8, i] + m_Q)) * (thrust[i] * np.cos(2 * mu_t_t[3, i] + mu_t_t[2, i]) + l * (mu_t_t[7, i])**2 * m_Q * np.cos(mu_t_t[3, i]))
-    A_t[4, 7] = 2 * dt * l * mu_t_t[8,i] * mu_t_t[7, i] * np.sin(mu_t_t[3, i]) / (mu_t_t[8, i] + m_Q)
-    A_t[4, 8] = dt * np.sin(mu_t_t[3,i]) / ((mu_t_t[8, i] + m_Q)**2) * (thrust[i] * np.cos(mu_t_t[3, i] + mu_t_t[2,i]) + l * (mu_t_t[7, i])**2 * m_Q)
-    A_t[5, 2] = dt * thrust[i] / (2 * m_Q * (mu_t_t[8, i] + m_Q)) * (mu_t_t[8, i] * np.sin(2 * mu_t_t[3, i] + mu_t_t[2, i]) - (mu_t_t[8, i] + 2 *m_Q) * np.sin(mu_t_t[2, i]))
-    A_t[5, 3] = dt * mu_t_t[8, i] / (m_Q * (mu_t_t[8, i] + m_Q)) * (thrust[i] * np.sin(2*mu_t_t[3, i] + mu_t_t[2, i]) + l * (mu_t_t[7, i])**2 * m_Q * np.sin(mu_t_t[3,i]))
-    A_t[5, 7] = -2 * dt * l * mu_t_t[8, i] * mu_t_t[7, i] * np.cos(mu_t_t[3,i]) / (mu_t_t[8,i] + m_Q)
-    A_t[5, 8] = -dt * np.cos(mu_t_t[3, i]) / ((mu_t_t[8, i] + m_Q)**2) * (thrust[i]*np.cos(mu_t_t[3, i] + mu_t_t[2, i]) + l * (mu_t_t[7, i])**2 * m_Q)
+    A_t[4, 3] = dt * mu_t_t[8, i] / (m_Q * (mu_t_t[8, i] + m_Q)) * (thrust[i] * np.cos(2 * mu_t_t[3, i] + mu_t_t[2, i]) + l * (mu_t_t[7, i]) ** 2 * m_Q * np.cos(mu_t_t[3, i]))
+    A_t[4, 7] = 2 * dt * l * mu_t_t[8, i] * mu_t_t[7, i] * np.sin(mu_t_t[3, i]) / (mu_t_t[8, i] + m_Q)
+    A_t[4, 8] = dt * np.sin(mu_t_t[3, i]) / ((mu_t_t[8, i] + m_Q) ** 2) * (thrust[i] * np.cos(mu_t_t[3, i] + mu_t_t[2, i]) + l * (mu_t_t[7, i]) ** 2 * m_Q)
+    A_t[5, 2] = dt * thrust[i] / (2 * m_Q * (mu_t_t[8, i] + m_Q)) * (mu_t_t[8, i] * np.sin(2 * mu_t_t[3, i] + mu_t_t[2, i]) - (mu_t_t[8, i] + 2 * m_Q) * np.sin(mu_t_t[2, i]))
+    A_t[5, 3] = dt * mu_t_t[8, i] / (m_Q * (mu_t_t[8, i] + m_Q)) * (thrust[i] * np.sin(2 * mu_t_t[3, i] + mu_t_t[2, i]) + l * (mu_t_t[7, i]) ** 2 * m_Q * np.sin(mu_t_t[3, i]))
+    A_t[5, 7] = -2 * dt * l * mu_t_t[8, i] * mu_t_t[7, i] * np.cos(mu_t_t[3, i]) / (mu_t_t[8, i] + m_Q)
+    A_t[5, 8] = -dt * np.cos(mu_t_t[3, i]) / ((mu_t_t[8, i] + m_Q) ** 2) * (thrust[i] * np.cos(mu_t_t[3, i] + mu_t_t[2, i]) + l * (mu_t_t[7, i]) ** 2 * m_Q)
     A_t[7, 2] = dt * thrust[i] * np.cos(mu_t_t[3, i] - mu_t_t[2, i]) / (m_Q * l)
     A_t[7, 3] = -dt * thrust[i] * np.cos(mu_t_t[3, i] - mu_t_t[2, i]) / (m_Q * l)
 
+    return A_t
+
+def Measurement_Jacobian():
+
+    C_t = np.zeros((m, n))
+
     C_t[0:3, 0:3] = np.identity(m)
+
+    return C_t
+
+def EKF_Predict(mu_t_t, Sigma_t_t, thrust, tau, A_t, i):
+
+    f = np.zeros(n)
 
     f[0] = mu_t_t[0, i] + dt * mu_t_t[4, i]
     f[1] = mu_t_t[1, i] + dt * mu_t_t[5, i]
@@ -151,34 +173,50 @@ for i in range(steps):
     f[7] = mu_t_t[1, i] - dt * thrust[i] * np.sin(mu_t_t[3, i] - mu_t_t[2, i]) / (m_Q * l)
     f[8] = mu_t_t[8, i]
 
+    mu_t_plus_t = f
+    Sigma_t_plus_t = A_t @ Sigma_t_t[:, :, i] @ A_t.T + Q_t
+
+    return mu_t_plus_t, Sigma_t_plus_t
+
+def EKF_Update(mu_t_t, Sigma_t_t, mu_t_plus_t, Sigma_t_plus_t, C_t, y, i):
+
+    g = np.zeros(m)
+
     g[0] = mu_t_t[0, i]
     g[1] = mu_t_t[1, i]
     g[2] = mu_t_t[2, i]
 
-    # EKF Prediction Step
-
-    mu_t_plus_t = f
-    Sigma_t_plus_t = A_t @ Sigma_t_t[:, :, i] @ A_t.T + Q_t
-
-    # EKF Update Step
-
     mu_t_t[:, i + 1] = mu_t_plus_t + Sigma_t_plus_t @ C_t.T @ np.linalg.inv(C_t @ Sigma_t_plus_t @ C_t.T + R_t) @ (y[:, i + 1] - g)
     Sigma_t_t[:, :, i + 1] = Sigma_t_plus_t - Sigma_t_plus_t @ C_t.T @ np.linalg.inv(C_t @ Sigma_t_plus_t @ C_t.T + R_t) @ C_t @ Sigma_t_plus_t
 
-    # Confidence Intervals
+    return mu_t_t, Sigma_t_t
+
+def Confidence(upper_conf_int, lower_conf_int, mu_t_t, Sigma_t_t, i):
 
     for j in range(n):
         upper_conf_int[j, i + 1] = mu_t_t[j, i + 1] + 1.96 * np.sqrt(Sigma_t_t[j, j, i + 1])
         lower_conf_int[j, i + 1] = mu_t_t[j, i + 1] - 1.96 * np.sqrt(Sigma_t_t[j, j, i + 1])
 
+    return upper_conf_int, lower_conf_int
+
+
+
+# Simulation loop
+
+[state, thrust, tau, y, mu_t_t, Sigma_t_t, upper_conf_int, lower_conf_int] = Simulation(steps, dt, state_initial, thrust_initial, tau_initial, mu_initial, Sigma_initial)
+
+
 
 # Plots
 
 plt.figure(1)
-plt.plot(t, state[0], label='True')
-plt.plot(t, mu_t_t[0], label='Belief')
-plt.fill_between(t, upper_conf_int[0], lower_conf_int[0], color='green', alpha=0.5, label='95% Confidence Interval')
+plt.plot(t, state[1], label='True')
+plt.plot(t, mu_t_t[1], label='Belief')
+plt.fill_between(t, upper_conf_int[1], lower_conf_int[1], color='green', alpha=0.5, label='95% Confidence Interval')
 plt.xlabel('Time (sec)')
 plt.ylabel('Position in x (m)')
 plt.legend()
 plt.show()
+
+
+
