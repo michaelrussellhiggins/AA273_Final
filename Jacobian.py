@@ -13,11 +13,11 @@ m_p = sp.symbols('m_p')
 
 f = sp.symbols('f')
 tau = sp.symbols('tau')
-m_Q = 5
-l = 1
-g = 9.81
-I_yy = 0.01
-dt = 0.01
+m_Q = sp.symbols('m_Q')
+l = sp.symbols('l')
+g = sp.symbols('g')
+I_yy = sp.symbols('I_yy')
+dt = sp.symbols('dt')
 
 eqn1 = x + dt*x_dot
 eqn2 = z + dt*z_dot
@@ -33,5 +33,15 @@ F = sp.Matrix([eqn1, eqn2, eqn3, eqn4, eqn5, eqn6, eqn7, eqn8, eqn9])
 G = sp.Matrix([x, z, theta])
 X = sp.Matrix([x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, m_p])
 
-A_t = F.jacobian(X)
-C_t = G.jacobian(X)
+A_t = sp.simplify(F.jacobian(X))
+C_t = sp.simplify(G.jacobian(X))
+
+print(A_t[0,:])
+print(A_t[1,:])
+print(A_t[2,:])
+print(A_t[3,:])
+print(A_t[4,:])
+print(A_t[5,:])
+print(A_t[6,:])
+print(A_t[7,:])
+print(A_t[8,:])
