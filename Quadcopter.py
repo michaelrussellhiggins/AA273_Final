@@ -1,12 +1,13 @@
 # Python Packages
 import numpy as np
+import sympy as sp
 import random
 from scipy.stats import multivariate_normal
 import matplotlib.pyplot as plt
 
 # Simulation settings
 dt = 0.01   # Simulation time step - sec
-t_final = 1   # Simulation run time - sec
+t_final = 5   # Simulation run time - sec
 steps = round(t_final/dt)
 t = np.zeros(steps+1)   # Initializes time vector
 
@@ -20,13 +21,13 @@ m = 3
 n = 9
 
 m_Q = 5
-m_p = 2
+m_P = 2
 I_yy = 0.01
 grav = 9.81
 l = 1
 
 state_initial = np.zeros(n)
-state_initial[n-1] = m_p  # Starts at origin with flat orientation and mass hanging straight down
+state_initial[n-1] = m_P  # Starts at origin with flat orientation and mass hanging straight down
 
 # List of states-
 # 0 - x
@@ -39,8 +40,21 @@ state_initial[n-1] = m_p  # Starts at origin with flat orientation and mass hang
 # 7 - phidot
 # 8 - mp
 
+x = sp.symbols('x')
+z = sp.symbols('z')
+theta = sp.symbols('theta')
+phi = sp.symbols('phi')
+x_dot = sp.symbols('x_dot')
+z_dot = sp.symbols('z_dot')
+theta_dot = sp.symbols('theta_dot')
+phi_dot = sp.symbols('phi_dot')
+m_p = sp.symbols('m_p')
+
+u1 = sp.symbols('u1')
+u2 = sp.symbols('u2')
+
 # Control
-thrust_initial = (m_Q + m_p)*grav  # The initial control output is currently set to a hovering thrust
+thrust_initial = (m_Q + m_P)*grav  # The initial control output is currently set to a hovering thrust
 tau_initial = 0
 
 # EKF Initialization
@@ -49,6 +63,8 @@ mu_initial[n-1] = 1   # Guesses that the quadcopter starts stationary at the ori
 Sigma_initial = 0.1*np.identity(9)   # Covariance of initial guess for state
 
 def Simulation(steps, dt, state_initial, thrust_initial, tau_initial, mu_initial, Sigma_initial):
+
+    [A, C] = Jacob(x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, u1, u2)
 
     state = np.zeros((n, steps + 1))
     state[:, 0] = state_initial
@@ -90,8 +106,9 @@ def Simulation(steps, dt, state_initial, thrust_initial, tau_initial, mu_initial
         y = Measure(state, y, i)
 
         # Jacobians
-        A_t = Dynamics_Jacobian(mu_t_t, thrust, i)
-        C_t = Measurement_Jacobian()
+        A_mid = A.subs([(x, mu_t_t[0,i]), (z, mu_t_t[1,i]), (theta, mu_t_t[2,i]), (phi, mu_t_t[3,i]), (x_dot, mu_t_t[4,i]), (z_dot, mu_t_t[5,i]), (theta_dot, mu_t_t[6,i]), (phi_dot, mu_t_t[7,i]), (m_p, mu_t_t[8,i]), (u1, thrust[i]), (u2, tau[i])])
+        A_t = np.array(A_mid).astype(np.float64)
+        C_t = np.array(C).astype(np.float64)
 
         # EKF
         [mu_t_plus_t, Sigma_t_plus_t] = EKF_Predict(mu_t_t, Sigma_t_t, thrust, tau, A_t, i)
@@ -105,7 +122,7 @@ def Simulation(steps, dt, state_initial, thrust_initial, tau_initial, mu_initial
 
 def Control(state, thrust, tau, i):
 
-    thrust[i + 1] = (m_Q + m_p) * grav + i*dt*10
+    thrust[i + 1] = (m_Q + m_P) * grav + i*dt*10
     tau[i + 1] = 0
 
     return thrust, tau
@@ -131,33 +148,6 @@ def Measure(state, y, i):
     y[2, i + 1] = state[2, i + 1] + random.gauss(0, R_t[2, 2])
 
     return y
-
-def Dynamics_Jacobian(mu_t_t, thrust, i):
-
-    A_t = np.zeros((n, n))
-
-    A_t[0:9, 0:9] = np.identity(n)
-    A_t[0:4, 4:8] = dt * np.identity(4)
-    A_t[4, 2] = dt * thrust[i] / (2 * m_Q * (mu_t_t[8, i] + m_Q)) * (mu_t_t[8, i] * np.cos(2 * mu_t_t[3, i] + mu_t_t[2, i]) + (mu_t_t[8, i] + 2 * m_Q) * np.cos(mu_t_t[2, i]))
-    A_t[4, 3] = dt * mu_t_t[8, i] / (m_Q * (mu_t_t[8, i] + m_Q)) * (thrust[i] * np.cos(2 * mu_t_t[3, i] + mu_t_t[2, i]) + l * (mu_t_t[7, i]) ** 2 * m_Q * np.cos(mu_t_t[3, i]))
-    A_t[4, 7] = 2 * dt * l * mu_t_t[8, i] * mu_t_t[7, i] * np.sin(mu_t_t[3, i]) / (mu_t_t[8, i] + m_Q)
-    A_t[4, 8] = dt * np.sin(mu_t_t[3, i]) / ((mu_t_t[8, i] + m_Q) ** 2) * (thrust[i] * np.cos(mu_t_t[3, i] + mu_t_t[2, i]) + l * (mu_t_t[7, i]) ** 2 * m_Q)
-    A_t[5, 2] = dt * thrust[i] / (2 * m_Q * (mu_t_t[8, i] + m_Q)) * (mu_t_t[8, i] * np.sin(2 * mu_t_t[3, i] + mu_t_t[2, i]) - (mu_t_t[8, i] + 2 * m_Q) * np.sin(mu_t_t[2, i]))
-    A_t[5, 3] = dt * mu_t_t[8, i] / (m_Q * (mu_t_t[8, i] + m_Q)) * (thrust[i] * np.sin(2 * mu_t_t[3, i] + mu_t_t[2, i]) + l * (mu_t_t[7, i]) ** 2 * m_Q * np.sin(mu_t_t[3, i]))
-    A_t[5, 7] = -2 * dt * l * mu_t_t[8, i] * mu_t_t[7, i] * np.cos(mu_t_t[3, i]) / (mu_t_t[8, i] + m_Q)
-    A_t[5, 8] = -dt * np.cos(mu_t_t[3, i]) / ((mu_t_t[8, i] + m_Q) ** 2) * (thrust[i] * np.cos(mu_t_t[3, i] + mu_t_t[2, i]) + l * (mu_t_t[7, i]) ** 2 * m_Q)
-    A_t[7, 2] = dt * thrust[i] * np.cos(mu_t_t[3, i] - mu_t_t[2, i]) / (m_Q * l)
-    A_t[7, 3] = -dt * thrust[i] * np.cos(mu_t_t[3, i] - mu_t_t[2, i]) / (m_Q * l)
-
-    return A_t
-
-def Measurement_Jacobian():
-
-    C_t = np.zeros((m, n))
-
-    C_t[0:3, 0:3] = np.identity(m)
-
-    return C_t
 
 def EKF_Predict(mu_t_t, Sigma_t_t, thrust, tau, A_t, i):
 
@@ -199,6 +189,30 @@ def Confidence(upper_conf_int, lower_conf_int, mu_t_t, Sigma_t_t, i):
 
     return upper_conf_int, lower_conf_int
 
+def Jacob(x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, u1, u2):
+
+    eqn1 = x + dt * x_dot
+    eqn2 = z + dt * z_dot
+    eqn3 = theta + dt * theta_dot
+    eqn4 = phi + dt * phi_dot
+    eqn5 = x_dot + dt * ((m_Q + m_p * (sp.cos(phi)) ** 2) / (m_Q * (m_Q + m_p)) * u1 * sp.sin(theta) + (
+                m_p * sp.sin(phi) * sp.cos(phi)) / (m_Q * (m_Q + m_p)) * u1 * sp.cos(theta) + (
+                                     m_p * l * phi_dot ** 2 * sp.sin(phi)) / (m_Q + m_p))
+    eqn6 = z_dot + dt * ((m_Q + m_p * (sp.sin(phi)) ** 2) / (m_Q * (m_Q + m_p)) * u1 * sp.cos(theta) + (
+                m_p * sp.sin(phi) * sp.cos(phi)) / (m_Q * (m_Q + m_p)) * u1 * sp.sin(theta) - (
+                                     m_p * l * phi_dot ** 2 * sp.cos(phi)) / (m_Q + m_p) - grav)
+    eqn7 = theta_dot + dt * u2 / I_yy
+    eqn8 = phi_dot - dt * u1 * sp.sin(phi - theta) / (m_Q * l)
+    eqn9 = m_p
+
+    F = sp.Matrix([eqn1, eqn2, eqn3, eqn4, eqn5, eqn6, eqn7, eqn8, eqn9])
+    G = sp.Matrix([x, z, theta])
+    X = sp.Matrix([x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, m_p])
+
+    A = F.jacobian(X)
+    C = G.jacobian(X)
+
+    return A, C
 
 
 # Simulation loop
