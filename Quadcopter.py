@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 # Simulation settings
 dt = 0.01   # Simulation time step - sec
-t_final = 5   # Simulation run time - sec
+t_final = 1   # Simulation run time - sec
 steps = round(t_final/dt)   #Number of simulation ssteps
 t = np.zeros(steps+1)   # Initializes time vector
 
@@ -103,14 +103,26 @@ def Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_init
         control = Control(state, control, i)
 
         # Dynamics
-
         if loaded:
             state = Dynamics_Loaded(state, control, i)
         else:
             state = Dynamics_Unloaded(state, control, i)
 
+        #Adds noise
+        state[i + 1, 0] = state[i + 1, 0] + np.random.normal(0, Q_t[0, 0], 1)
+        state[i + 1, 1] = state[i + 1, 1] + np.random.normal(0, Q_t[1, 1], 1)
+        state[i + 1, 2] = state[i + 1, 2] + np.random.normal(0, Q_t[2, 2], 1)
+        state[i + 1, 4] = state[i + 1, 4] + np.random.normal(0, Q_t[4, 4], 1)
+        state[i + 1, 5] = state[i + 1, 5] + np.random.normal(0, Q_t[5, 5], 1)
+        state[i + 1, 6] = state[i + 1, 6] + np.random.normal(0, Q_t[6, 6], 1)
+
+        if loaded:
+            state[i + 1, 3] = state[i + 1, 3] + np.random.normal(0, Q_t[3, 3], 1)
+            state[i + 1, 7] = state[i + 1, 7] + np.random.normal(0, Q_t[7, 7], 1)
+
         # Measurement
         y = Measure(state, y, i)
+        y[i + 1] = y[i + 1] + np.random.normal(0, R_t[0, 0], 3)
 
         # Jacobians
         A_t = A(mu_t_t[i, 0], mu_t_t[i, 1], mu_t_t[i, 2], mu_t_t[i, 3], mu_t_t[i, 4], mu_t_t[i, 5], mu_t_t[i, 6], mu_t_t[i, 7], mu_t_t[i, 8], control[i, 0], control[i, 1])
@@ -126,7 +138,6 @@ def Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_init
         [mu_t_t, Sigma_t_t] = EKF_Update(mu_t_t, Sigma_t_t, mu_t_plus_t, Sigma_t_plus_t, C_t, y, i)
 
         # Confidence Intervals
-
         [upper_conf_int, lower_conf_int] = Confidence(upper_conf_int, lower_conf_int, mu_t_t, Sigma_t_t, i)
 
     return state, control, y, mu_t_t, Sigma_t_t, upper_conf_int, lower_conf_int
@@ -140,49 +151,49 @@ def Control(state, control, i):
 
 def Dynamics_Loaded(state, control, i):
 
-    state[i + 1, 0] = state[i, 0] + dt * state[i, 4] + random.gauss(0, Q_t[0, 0])
-    state[i + 1, 1] = state[i, 1] + dt * state[i, 5] + random.gauss(0, Q_t[1, 1])
-    state[i + 1, 2] = state[i, 2] + dt * state[i, 6] + random.gauss(0, Q_t[2, 2])
-    state[i + 1, 3] = state[i, 3] + dt * state[i, 7] + random.gauss(0, Q_t[3, 3])
-    state[i + 1, 4] = state[i, 4] + dt * control[i, 0] * np.sin(state[i, 2]) * (m_Q + state[i, 8] * (np.cos(state[i, 3])) ** 2) / (m_Q * (m_Q + state[i, 8])) + dt * control[i, 0] * np.cos(state[i, 2]) * (state[i, 8] * np.sin(state[i, 3]) * np.cos(state[i, 3])) / (m_Q * (m_Q + state[i, 8])) + dt * state[i, 8] * l * (state[i, 7]) ** 2 * np.sin(state[i, 3]) / (m_Q + state[i, 8]) + random.gauss(0, Q_t[4, 4])
-    state[i + 1, 5] = state[i, 5] + dt * control[i, 0] * np.cos(state[i, 2]) * (m_Q + state[i, 8] * (np.sin(state[i, 3])) ** 2) / (m_Q * (m_Q + state[i, 8])) + dt * control[i, 0] * np.sin(state[i, 2]) * (state[i, 8] * np.sin(state[i, 3]) * np.cos(state[i, 3])) / (m_Q * (m_Q + state[i, 8])) - dt * state[i, 8] * l * (state[i, 7]) ** 2 * np.sin(state[i, 3]) / (m_Q + state[i, 8]) - dt * grav + random.gauss(0, Q_t[5, 5])
-    state[i + 1, 6] = state[i, 6] + dt * control[i, 1] / I_yy + random.gauss(0, Q_t[6, 6])
-    state[i + 1, 7] = state[i, 7] - dt * control[i, 0] * np.sin(state[i, 3] - state[i, 2]) / (m_Q * l) + random.gauss(0,Q_t[7, 7])
+    state[i + 1, 0] = state[i, 0] + dt * state[i, 4]
+    state[i + 1, 1] = state[i, 1] + dt * state[i, 5]
+    state[i + 1, 2] = state[i, 2] + dt * state[i, 6]
+    state[i + 1, 3] = state[i, 3] + dt * state[i, 7]
+    state[i + 1, 4] = state[i, 4] + dt * control[i, 0] * np.sin(state[i, 2]) * (m_Q + state[i, 8] * (np.cos(state[i, 3])) ** 2) / (m_Q * (m_Q + state[i, 8])) + dt * control[i, 0] * np.cos(state[i, 2]) * (state[i, 8] * np.sin(state[i, 3]) * np.cos(state[i, 3])) / (m_Q * (m_Q + state[i, 8])) + dt * state[i, 8] * l * (state[i, 7]) ** 2 * np.sin(state[i, 3]) / (m_Q + state[i, 8])
+    state[i + 1, 5] = state[i, 5] + dt * control[i, 0] * np.cos(state[i, 2]) * (m_Q + state[i, 8] * (np.sin(state[i, 3])) ** 2) / (m_Q * (m_Q + state[i, 8])) + dt * control[i, 0] * np.sin(state[i, 2]) * (state[i, 8] * np.sin(state[i, 3]) * np.cos(state[i, 3])) / (m_Q * (m_Q + state[i, 8])) - dt * state[i, 8] * l * (state[i, 7]) ** 2 * np.sin(state[i, 3]) / (m_Q + state[i, 8]) - dt * grav
+    state[i + 1, 6] = state[i, 6] + dt * control[i, 1] / I_yy
+    state[i + 1, 7] = state[i, 7] - dt * control[i, 0] * np.sin(state[i, 3] - state[i, 2]) / (m_Q * l)
     state[i + 1, 8] = state[i, 8]
 
     return state
 
 def Dynamics_Unloaded(state, control, i):
 
-    state[i + 1, 0] = state[i, 0] + dt * state[i, 4] + random.gauss(0, Q_t[0, 0])
-    state[i + 1, 1] = state[i, 1] + dt * state[i, 5] + random.gauss(0, Q_t[1, 1])
-    state[i + 1, 2] = state[i, 2] + dt * state[i, 6] + random.gauss(0, Q_t[2, 2])
+    state[i + 1, 0] = state[i, 0] + dt * state[i, 4]
+    state[i + 1, 1] = state[i, 1] + dt * state[i, 5]
+    state[i + 1, 2] = state[i, 2] + dt * state[i, 6]
     state[i + 1, 3] = state[i, 3] + dt * state[i, 7]
     state[i + 1, 4] = state[i, 4] + dt * control[i, 0] * np.sin(state[i, 2]) / m_Q
-    state[i + 1, 5] = state[i, 5] + dt * control[i, 0] * np.cos(state[i, 2]) / m_Q - dt * grav + random.gauss(0, Q_t[5, 5])
-    state[i + 1, 6] = state[i, 6] + dt * control[i, 1] / I_yy + random.gauss(0, Q_t[6, 6])
+    state[i + 1, 5] = state[i, 5] + dt * control[i, 0] * np.cos(state[i, 2]) / m_Q - dt * grav
+    state[i + 1, 6] = state[i, 6] + dt * control[i, 1] / I_yy
     state[i + 1, 7] = 0
     state[i + 1, 8] = state[i, 8]
 
     return state
 
 def Dynamics_No_m_p(state, control, i):
-    state[i + 1, 0] = state[i, 0] + dt * state[i, 4] + random.gauss(0, Q_t[0, 0])
-    state[i + 1, 1] = state[i, 1] + dt * state[i, 5] + random.gauss(0, Q_t[1, 1])
-    state[i + 1, 2] = state[i, 2] + dt * state[i, 6] + random.gauss(0, Q_t[2, 2])
-    state[i + 1, 3] = state[i, 3] + dt * state[i, 7] + random.gauss(0, Q_t[3, 3])
-    state[i + 1, 4] = state[i, 4] + dt * control[i, 0] * np.sin(state[i, 2]) * (m_Q + m_P * (np.cos(state[i, 3])) ** 2) / (m_Q * (m_Q + m_P)) + dt * control[i, 0] * np.cos(state[i, 2]) * (m_P * np.sin(state[i, 3]) * np.cos(state[i, 3])) / (m_Q * (m_Q + m_P)) + dt * m_P * l * (state[i, 7]) ** 2 * np.sin(state[i, 3]) / (m_Q + m_P) + random.gauss(0, Q_t[4, 4])
-    state[i + 1, 5] = state[i, 5] + dt * control[i, 0] * np.cos(state[i, 2]) * (m_Q + m_P * (np.sin(state[i, 3])) ** 2) / (m_Q * (m_Q + m_P)) + dt * control[i, 0] * np.sin(state[i, 2]) * (m_P * np.sin(state[i, 3]) * np.cos(state[i, 3])) / (m_Q * (m_Q + m_P)) - dt * m_P * l * (state[i, 7]) ** 2 * np.sin(state[i, 3]) / (m_Q + m_P) - dt * grav + random.gauss(0, Q_t[5, 5])
-    state[i + 1, 6] = state[i, 6] + dt * control[i, 1] / I_yy + random.gauss(0, Q_t[6, 6])
-    state[i + 1, 7] = state[i, 7] - dt * control[i, 0] * np.sin(state[i, 3] - state[i, 2]) / (m_Q * l) + random.gauss(0, Q_t[7, 7])
+    state[i + 1, 0] = state[i, 0] + dt * state[i, 4]
+    state[i + 1, 1] = state[i, 1] + dt * state[i, 5]
+    state[i + 1, 2] = state[i, 2] + dt * state[i, 6]
+    state[i + 1, 3] = state[i, 3] + dt * state[i, 7]
+    state[i + 1, 4] = state[i, 4] + dt * control[i, 0] * np.sin(state[i, 2]) * (m_Q + m_P * (np.cos(state[i, 3])) ** 2) / (m_Q * (m_Q + m_P)) + dt * control[i, 0] * np.cos(state[i, 2]) * (m_P * np.sin(state[i, 3]) * np.cos(state[i, 3])) / (m_Q * (m_Q + m_P)) + dt * m_P * l * (state[i, 7]) ** 2 * np.sin(state[i, 3]) / (m_Q + m_P)
+    state[i + 1, 5] = state[i, 5] + dt * control[i, 0] * np.cos(state[i, 2]) * (m_Q + m_P * (np.sin(state[i, 3])) ** 2) / (m_Q * (m_Q + m_P)) + dt * control[i, 0] * np.sin(state[i, 2]) * (m_P * np.sin(state[i, 3]) * np.cos(state[i, 3])) / (m_Q * (m_Q + m_P)) - dt * m_P * l * (state[i, 7]) ** 2 * np.sin(state[i, 3]) / (m_Q + m_P) - dt * grav
+    state[i + 1, 6] = state[i, 6] + dt * control[i, 1] / I_yy
+    state[i + 1, 7] = state[i, 7] - dt * control[i, 0] * np.sin(state[i, 3] - state[i, 2]) / (m_Q * l)
 
     return state
 
 def Measure(state, y, i):
 
-    y[i + 1, 0] = state[i + 1, 0] + random.gauss(0, R_t[0, 0])
-    y[i + 1, 1] = state[i + 1, 1] + random.gauss(0, R_t[1, 1])
-    y[i + 1, 2] = state[i + 1, 2] + random.gauss(0, R_t[2, 2])
+    y[i + 1, 0] = state[i + 1, 0]
+    y[i + 1, 1] = state[i + 1, 1]
+    y[i + 1, 2] = state[i + 1, 2]
 
     return y
 
