@@ -42,19 +42,6 @@ state_initial[n-1] = m_P  # Starts at origin with flat orientation and mass hang
 # 7 - phidot
 # 8 - mp
 
-x = sp.symbols('x')
-z = sp.symbols('z')
-theta = sp.symbols('theta')
-phi = sp.symbols('phi')
-x_dot = sp.symbols('x_dot')
-z_dot = sp.symbols('z_dot')
-theta_dot = sp.symbols('theta_dot')
-phi_dot = sp.symbols('phi_dot')
-m_p = sp.symbols('m_p')
-
-u1 = sp.symbols('u1')
-u2 = sp.symbols('u2')
-
 # Control
 thrust_initial = (m_Q + m_P)*grav  # The initial control output is currently set to a hovering thrust
 tau_initial = 0
@@ -69,7 +56,7 @@ Sigma_initial = 0.1*np.identity(9)   # Covariance of initial guess for state
 
 def Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_initial, loaded, m_p_var, filter):
 
-    [A, C] = Jacob_Loaded(x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, u1, u2)
+    [A, C] = Jacobian()
 
     state = np.zeros((steps + 1, n))
     state[0, :] = state_initial
@@ -263,7 +250,20 @@ def Confidence(upper_conf_int, lower_conf_int, mu_t_t, Sigma_t_t, i):
 
     return upper_conf_int, lower_conf_int
 
-def Jacob_Loaded(x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, u1, u2):
+def Jacobian():
+
+    x = sp.symbols('x')
+    z = sp.symbols('z')
+    theta = sp.symbols('theta')
+    phi = sp.symbols('phi')
+    x_dot = sp.symbols('x_dot')
+    z_dot = sp.symbols('z_dot')
+    theta_dot = sp.symbols('theta_dot')
+    phi_dot = sp.symbols('phi_dot')
+    m_p = sp.symbols('m_p')
+
+    u1 = sp.symbols('u1')
+    u2 = sp.symbols('u2')
 
     eqn1 = x + dt * x_dot
     eqn2 = z + dt * z_dot
