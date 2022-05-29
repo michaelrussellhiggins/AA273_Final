@@ -67,9 +67,9 @@ mu_initial = np.zeros(n)   # Mean of initial guess for state
 mu_initial[n-1] = 1   # Guesses that the quadcopter starts stationary at the origin and has a payload of mass 1 kg
 Sigma_initial = 0.1*np.identity(9)   # Covariance of initial guess for state
 
-def Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_initial, loaded, m_p_var):
+def Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_initial, loaded, m_p_var, filter):
 
-    [A, C] = Jacob(x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, u1, u2)
+    [A, C] = Jacob_Loaded(x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, u1, u2)
 
     state = np.zeros((steps + 1, n))
     state[0, :] = state_initial
@@ -124,23 +124,30 @@ def Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_init
         y = Measure(state, y, i)
         y[i + 1] = y[i + 1] + np.random.normal(0, R_t[0, 0], 3)
 
-        # Jacobians
-        A_t = A(mu_t_t[i, 0], mu_t_t[i, 1], mu_t_t[i, 2], mu_t_t[i, 3], mu_t_t[i, 4], mu_t_t[i, 5], mu_t_t[i, 6], mu_t_t[i, 7], mu_t_t[i, 8], control[i, 0], control[i, 1])
-        A_t = np.array(A_t).astype(np.float64)
-        C_t = np.array(C).astype(np.float64)
-
-        # EKF
-        if loaded:
-            [mu_t_plus_t, Sigma_t_plus_t] = EKF_Predict_Loaded(mu_t_t, Sigma_t_t, control, A_t, i)
-        else:
-            [mu_t_plus_t, Sigma_t_plus_t] = EKF_Predict_Unloaded(mu_t_t, Sigma_t_t, control, A_t, i)
-
-        [mu_t_t, Sigma_t_t] = EKF_Update(mu_t_t, Sigma_t_t, mu_t_plus_t, Sigma_t_plus_t, C_t, y, i)
-
-        # Confidence Intervals
-        [upper_conf_int, lower_conf_int] = Confidence(upper_conf_int, lower_conf_int, mu_t_t, Sigma_t_t, i)
+        if filter:
+            [mu_t_t, Sigma_t_t, upper_conf_int, lower_conf_int] = EKF(mu_t_t, Sigma_t_t, upper_conf_int, lower_conf_int, control, y, A, C, i, loaded)
 
     return state, control, y, mu_t_t, Sigma_t_t, upper_conf_int, lower_conf_int
+
+def EKF(mu_t_t, Sigma_t_t, upper_conf_int, lower_conf_int, control, y, A, C, i, loaded):
+
+    # Jacobians
+    A_t = A(mu_t_t[i, 0], mu_t_t[i, 1], mu_t_t[i, 2], mu_t_t[i, 3], mu_t_t[i, 4], mu_t_t[i, 5], mu_t_t[i, 6], mu_t_t[i, 7], mu_t_t[i, 8], control[i, 0], control[i, 1])
+    A_t = np.array(A_t).astype(np.float64)
+    C_t = np.array(C).astype(np.float64)
+
+    # EKF
+    if loaded:
+        [mu_t_plus_t, Sigma_t_plus_t] = EKF_Predict_Loaded(mu_t_t, Sigma_t_t, control, A_t, i)
+    else:
+        [mu_t_plus_t, Sigma_t_plus_t] = EKF_Predict_Unloaded(mu_t_t, Sigma_t_t, control, A_t, i)
+
+    [mu_t_t, Sigma_t_t] = EKF_Update(mu_t_t, Sigma_t_t, mu_t_plus_t, Sigma_t_plus_t, C_t, y, i)
+
+    # Confidence Intervals
+    [upper_conf_int, lower_conf_int] = Confidence(upper_conf_int, lower_conf_int, mu_t_t, Sigma_t_t, i)
+
+    return mu_t_t, Sigma_t_t, upper_conf_int, lower_conf_int
 
 def Control(state, control, i):
 
@@ -256,7 +263,7 @@ def Confidence(upper_conf_int, lower_conf_int, mu_t_t, Sigma_t_t, i):
 
     return upper_conf_int, lower_conf_int
 
-def Jacob(x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, u1, u2):
+def Jacob_Loaded(x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, u1, u2):
 
     eqn1 = x + dt * x_dot
     eqn2 = z + dt * z_dot
@@ -283,12 +290,9 @@ def Jacob(x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, u1, u2):
 
     return A, C
 
-
 # Simulation loop
 
-[state, control, y, mu_t_t, Sigma_t_t, upper_conf_int, lower_conf_int] = Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_initial, 1, 1)
-
-
+[state, control, y, mu_t_t, Sigma_t_t, upper_conf_int, lower_conf_int] = Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_initial, 1, 1, 1)
 
 # Plots
 
