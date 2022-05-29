@@ -67,7 +67,7 @@ mu_initial = np.zeros(n)   # Mean of initial guess for state
 mu_initial[n-1] = 1   # Guesses that the quadcopter starts stationary at the origin and has a payload of mass 1 kg
 Sigma_initial = 0.1*np.identity(9)   # Covariance of initial guess for state
 
-def Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_initial, loaded):
+def Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_initial, loaded, m_p_var):
 
     [A, C] = Jacob(x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, u1, u2)
 
@@ -163,6 +163,18 @@ def Dynamics_Unloaded(state, control, i):
     state[i + 1, 6] = state[i, 6] + dt * control[i, 1] / I_yy + random.gauss(0, Q_t[6, 6])
     state[i + 1, 7] = 0
     state[i + 1, 8] = state[i, 8]
+
+    return state
+
+def Dynamics_No_m_p(state, control, i):
+    state[i + 1, 0] = state[i, 0] + dt * state[i, 4] + random.gauss(0, Q_t[0, 0])
+    state[i + 1, 1] = state[i, 1] + dt * state[i, 5] + random.gauss(0, Q_t[1, 1])
+    state[i + 1, 2] = state[i, 2] + dt * state[i, 6] + random.gauss(0, Q_t[2, 2])
+    state[i + 1, 3] = state[i, 3] + dt * state[i, 7] + random.gauss(0, Q_t[3, 3])
+    state[i + 1, 4] = state[i, 4] + dt * control[i, 0] * np.sin(state[i, 2]) * (m_Q + m_P * (np.cos(state[i, 3])) ** 2) / (m_Q * (m_Q + m_P)) + dt * control[i, 0] * np.cos(state[i, 2]) * (m_P * np.sin(state[i, 3]) * np.cos(state[i, 3])) / (m_Q * (m_Q + m_P)) + dt * m_P * l * (state[i, 7]) ** 2 * np.sin(state[i, 3]) / (m_Q + m_P) + random.gauss(0, Q_t[4, 4])
+    state[i + 1, 5] = state[i, 5] + dt * control[i, 0] * np.cos(state[i, 2]) * (m_Q + m_P * (np.sin(state[i, 3])) ** 2) / (m_Q * (m_Q + m_P)) + dt * control[i, 0] * np.sin(state[i, 2]) * (m_P * np.sin(state[i, 3]) * np.cos(state[i, 3])) / (m_Q * (m_Q + m_P)) - dt * m_P * l * (state[i, 7]) ** 2 * np.sin(state[i, 3]) / (m_Q + m_P) - dt * grav + random.gauss(0, Q_t[5, 5])
+    state[i + 1, 6] = state[i, 6] + dt * control[i, 1] / I_yy + random.gauss(0, Q_t[6, 6])
+    state[i + 1, 7] = state[i, 7] - dt * control[i, 0] * np.sin(state[i, 3] - state[i, 2]) / (m_Q * l) + random.gauss(0, Q_t[7, 7])
 
     return state
 
@@ -263,7 +275,7 @@ def Jacob(x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, u1, u2):
 
 # Simulation loop
 
-[state, control, y, mu_t_t, Sigma_t_t, upper_conf_int, lower_conf_int] = Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_initial, 1)
+[state, control, y, mu_t_t, Sigma_t_t, upper_conf_int, lower_conf_int] = Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_initial, 1, 1)
 
 
 
