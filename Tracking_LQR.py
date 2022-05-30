@@ -4,10 +4,10 @@ from copy import deepcopy
 
 # unloaded 2D quadrotor object class
 class PlanarQuadrotor:
-    def __init__(self, m_Q, Iyy, l, m_p = 0.):
+    def __init__(self, m_Q, Iyy, d, m_p = 0.):
         self.m_Q = m_Q      # quadrotor mass
         self.Iyy = Iyy      # quadrotor second moment of inertia
-        self.l = l          # length from center of mass to propellers
+        self.d = d          # length from center of mass to propellers
         self.m_p = m_p      # payload mass (optional)
         self.g = 9.81       # acceleration due to gravity [m/s^2]
 
@@ -19,7 +19,7 @@ def Jacobians(s: np.ndarray, u: np.ndarray, dt: float, quad):
     """Calculate state and control Jacobians around (s*,u*)."""
     state_dim = s.shape[0]
     control_dim = u.shape[0]
-    m, Iyy, l = quad.m_Q, quad.Iyy, quad.l
+    m, Iyy, d = quad.m_Q, quad.Iyy, quad.l
     x, z, theta, v_x, v_y, omega = s
     T1, T2 = u
 
@@ -35,8 +35,8 @@ def Jacobians(s: np.ndarray, u: np.ndarray, dt: float, quad):
     df_du[3,1] = dt*np.sin(theta) / m
     df_du[4,0] = dt*np.cos(theta) / m
     df_du[4,1] = dt*np.cos(theta) / m
-    df_du[5,0] = dt*l / Iyy
-    df_du[5,1] = -dt*l / Iyy
+    df_du[5,0] = dt*d / Iyy
+    df_du[5,1] = -dt*d / Iyy
  
     return df_ds, df_du
 
@@ -82,6 +82,6 @@ def generate_control(s0: np.ndarray, s_goal: np.ndarray, K: np.ndarray, quad):
     # Convert propeller [Thrust 1, Thrust 2] -> [Force, Torque]
     u = np.zeros((2,1))
     u[0] = u_prop[0] + u_prop[1]
-    u[1] = (u_prop[0] - u_prop[2]) * quad.l
+    u[1] = (u_prop[0] - u_prop[2]) * quad.d
 
     return u
