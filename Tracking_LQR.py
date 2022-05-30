@@ -87,9 +87,3 @@ def generate_control(s0: np.ndarray, s_goal: np.ndarray, dt: float, quad):
     u[1] = (u_prop[0] - u_prop[2]) * quad.l
 
     return u
-
-
-
-
-
-    
