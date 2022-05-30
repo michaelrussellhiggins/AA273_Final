@@ -69,17 +69,17 @@ def animate_2D_quad(t, state, full_system = 1, frameDelay = 30):
     # Quadrotor Artists
     rod = mpatches.Rectangle((-rod_width/2, -rod_height/2),
                              rod_width, rod_height,
-                             facecolor='tab:blue', edgecolor='k')
+                             facecolor='tab:red', edgecolor='k')
     hub = mpatches.FancyBboxPatch((-hub_width/2, -hub_height/2),
                                   hub_width, hub_height,
-                                  facecolor='tab:blue', edgecolor='k',
+                                  facecolor='tab:red', edgecolor='k',
                                   boxstyle='Round,pad=0.,rounding_size=0.05')
     axle_left = mpatches.Rectangle((-rod_width/2, rod_height/2),
                                    axle_width, axle_height,
-                                   facecolor='tab:blue', edgecolor='k')
+                                   facecolor='tab:red', edgecolor='k')
     axle_right = mpatches.Rectangle((rod_width/2 - axle_width, rod_height/2),
                                     axle_width, axle_height,
-                                    facecolor='tab:blue', edgecolor='k')
+                                    facecolor='tab:red', edgecolor='k')
     prop_left = mpatches.Ellipse(((axle_width - rod_width)/2,
                                   rod_height/2 + axle_height),
                                  prop_width, prop_height,
@@ -95,9 +95,9 @@ def animate_2D_quad(t, state, full_system = 1, frameDelay = 30):
 
     # Pendulum Artists
     pole = mpatches.Arrow(0., 0., 0., -pole_length, width=pole_thick, 
-                              facecolor='tab:orange', edgecolor='k')
+                              facecolor='tab:brown', edgecolor='k')
     ball = mpatches.Circle((0., -pole_length), radius=ball_radius, 
-                           facecolor='tab:red', edgecolor='k')
+                           facecolor='tab:orange', edgecolor='k')
 
     # Add patches to axis
     for patch in patches:
@@ -108,7 +108,7 @@ def animate_2D_quad(t, state, full_system = 1, frameDelay = 30):
       ax.add_patch(ball)
 
     # Trace and timestamp
-    trace = ax.plot([], [], '--', linewidth=2, color='tab:orange')[0]
+    trace = ax.plot([], [], '--', linewidth=2, color='tab:blue')[0]
     timestamp = ax.text(0.1, 0.9, '', transform=ax.transAxes)
 
     # Animation
@@ -147,7 +147,6 @@ def animate_2D_quad(t, state, full_system = 1, frameDelay = 30):
 
         return artists
 
-    dt = t[5] - t[4]
     ani = animation.FuncAnimation(fig, animate, t.size, fargs=(t, x, z, θ, ϕ),
                                   interval=frameDelay, blit=True)
     return fig, ani
