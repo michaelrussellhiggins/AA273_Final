@@ -71,9 +71,7 @@ def LQR_tracking_gain(s_goal: np.ndarray, dt: float, quad):
     return K
 
 # Generate Force and Torque control for unloaded quadrotor
-def generate_control(s0: np.ndarray, s_goal: np.ndarray, dt: float, quad):
-    # Infinite Horizon feedback gain
-    K = LQR_tracking_gain(s_goal, dt, quad)
+def generate_control(s0: np.ndarray, s_goal: np.ndarray, K: np.ndarray, quad):
 
     # State deviation variable
     delta_s = s0 - s_goal
