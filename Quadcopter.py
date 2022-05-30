@@ -31,30 +31,6 @@ l = 1
 state_initial = np.zeros(n)
 state_initial[n-1] = m_P  # Starts at origin with flat orientation and mass hanging straight down
 
-# List of states-
-# 0 - x
-# 1 - z
-# 2 - theta
-# 3 - phi
-# 4 - xdot
-# 5 - zdot
-# 6 - thetadot
-# 7 - phidot
-# 8 - mp
-
-x = sp.symbols('x')
-z = sp.symbols('z')
-theta = sp.symbols('theta')
-phi = sp.symbols('phi')
-x_dot = sp.symbols('x_dot')
-z_dot = sp.symbols('z_dot')
-theta_dot = sp.symbols('theta_dot')
-phi_dot = sp.symbols('phi_dot')
-m_p = sp.symbols('m_p')
-
-u1 = sp.symbols('u1')
-u2 = sp.symbols('u2')
-
 # Control
 thrust_initial = (m_Q + m_P)*grav  # The initial control output is currently set to a hovering thrust
 tau_initial = 0
@@ -69,7 +45,7 @@ Sigma_initial = 0.1*np.identity(9)   # Covariance of initial guess for state
 
 def Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_initial, loaded, m_p_var):
 
-    [A, C] = Jacob(x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, u1, u2)
+    [A, C] = Jacob()
 
     state = np.zeros((steps + 1, n))
     state[0, :] = state_initial
@@ -256,7 +232,76 @@ def Confidence(upper_conf_int, lower_conf_int, mu_t_t, Sigma_t_t, i):
 
     return upper_conf_int, lower_conf_int
 
-def Jacob(x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, u1, u2):
+def SymbolicExperssions():
+    x = sp.symbols('x')
+    z = sp.symbols('z')
+    theta = sp.symbols('theta')
+    phi = sp.symbols('phi')
+    x_dot = sp.symbols('x_dot')
+    z_dot = sp.symbols('z_dot')
+    theta_dot = sp.symbols('theta_dot')
+    phi_dot = sp.symbols('phi_dot')
+    m_p = sp.symbols('m_p')
+
+    u1 = sp.symbols('u1')
+    u2 = sp.symbols('u2')
+
+    # inputs to all function interfaces
+    states_n = sp.Array([x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, m_p])
+    controls_m = sp.Array([u1, u2])
+
+    # full dynamics
+    eqn1 = x + dt * x_dot
+    eqn2 = z + dt * z_dot
+    eqn3 = theta + dt * theta_dot
+    eqn4 = phi + dt * phi_dot
+    eqn5 = x_dot + dt * ((m_Q + m_p * (sp.cos(phi)) ** 2) / (m_Q * (m_Q + m_p)) * u1 * sp.sin(theta) + (
+                m_p * sp.sin(phi) * sp.cos(phi)) / (m_Q * (m_Q + m_p)) * u1 * sp.cos(theta) + (
+                                     m_p * l * phi_dot ** 2 * sp.sin(phi)) / (m_Q + m_p))
+    eqn6 = z_dot + dt * ((m_Q + m_p * (sp.sin(phi)) ** 2) / (m_Q * (m_Q + m_p)) * u1 * sp.cos(theta) + (
+                m_p * sp.sin(phi) * sp.cos(phi)) / (m_Q * (m_Q + m_p)) * u1 * sp.sin(theta) - (
+                                     m_p * l * phi_dot ** 2 * sp.cos(phi)) / (m_Q + m_p) - grav)
+    eqn7 = theta_dot + dt * u2 / I_yy
+    eqn8 = phi_dot - dt * u1 * sp.sin(phi - theta) / (m_Q * l)
+    eqn9 = m_p
+
+    f_full = sp.Matrix([eqn1, eqn2, eqn3, eqn4, eqn5, eqn6, eqn7, eqn8, eqn9])
+    g = sp.Matrix([x, z, theta])
+
+    A = sp.simplify(f_full.jacobian(states_n))
+    C = sp.simplify(g.jacobian(states_n))
+
+    return {
+        "f_full": sp.lambdify([states_n, controls_m], f_full),
+        "g": sp.lambdify([states_n], g),
+        "A": sp.lambdify([states_n, controls_m], A),
+        "C": sp.lambdify([states_n], C),
+    }
+
+def Jacob():
+    # List of states-
+    # 0 - x
+    # 1 - z
+    # 2 - theta
+    # 3 - phi
+    # 4 - xdot
+    # 5 - zdot
+    # 6 - thetadot
+    # 7 - phidot
+    # 8 - mp
+
+    x = sp.symbols('x')
+    z = sp.symbols('z')
+    theta = sp.symbols('theta')
+    phi = sp.symbols('phi')
+    x_dot = sp.symbols('x_dot')
+    z_dot = sp.symbols('z_dot')
+    theta_dot = sp.symbols('theta_dot')
+    phi_dot = sp.symbols('phi_dot')
+    m_p = sp.symbols('m_p')
+
+    u1 = sp.symbols('u1')
+    u2 = sp.symbols('u2')
 
     eqn1 = x + dt * x_dot
     eqn2 = z + dt * z_dot
@@ -286,17 +331,18 @@ def Jacob(x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, u1, u2):
 
 # Simulation loop
 
-[state, control, y, mu_t_t, Sigma_t_t, upper_conf_int, lower_conf_int] = Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_initial, 1, 1)
+if __name__ == "__main__":
 
+    [state, control, y, mu_t_t, Sigma_t_t, upper_conf_int, lower_conf_int] = Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_initial, 1, 1)
 
 
 # Plots
 
-plt.figure(1)
-plt.plot(t, state[:, 1], label='True')
-plt.plot(t, mu_t_t[:, 1], label='Belief')
-plt.fill_between(t, upper_conf_int[:, 1], lower_conf_int[:, 1], color='green', alpha=0.5, label='95% Confidence Interval')
-plt.xlabel('Time (sec)')
-plt.ylabel('Position in z (m)')
-plt.legend()
-plt.show()
+    plt.figure(1)
+    plt.plot(t, state[:, 1], label='True')
+    plt.plot(t, mu_t_t[:, 1], label='Belief')
+    plt.fill_between(t, upper_conf_int[:, 1], lower_conf_int[:, 1], color='green', alpha=0.5, label='95% Confidence Interval')
+    plt.xlabel('Time (sec)')
+    plt.ylabel('Position in z (m)')
+    plt.legend()
+    plt.show()
