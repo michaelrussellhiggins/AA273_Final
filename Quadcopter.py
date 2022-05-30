@@ -5,6 +5,55 @@ import random
 from scipy.stats import multivariate_normal
 import matplotlib.pyplot as plt
 
+# Simulation settings
+dt = 0.01  # Simulation time step - sec
+t_final = 1  # Simulation run time - sec
+steps = round(t_final / dt)  # Number of simulation ssteps
+t = np.zeros(steps + 1)  # Initializes time vector
+
+# Noise
+Q_t = 0.001 * np.identity(9)  # Process noise
+R_t = 0.001 * np.identity(3)  # Measurement noise
+
+# Initialization
+# System
+m = 3
+n = 9
+
+# Parameters
+m_Q = 5
+m_P = 2
+I_yy = 0.01
+grav = 9.81
+l = 1
+
+# Dynamics
+state_initial = np.zeros(n)
+state_initial[n - 1] = m_P  # Starts at origin with flat orientation and mass hanging straight down
+
+# List of states-
+# 0 - x
+# 1 - z
+# 2 - theta
+# 3 - phi
+# 4 - xdot
+# 5 - zdot
+# 6 - thetadot
+# 7 - phidot
+# 8 - mp
+
+# Control
+thrust_initial = (m_Q + m_P) * grav  # The initial control output is currently set to a hovering thrust
+tau_initial = 0
+control_initial = np.zeros(2)
+control_initial[0] = thrust_initial
+control_initial[1] = tau_initial
+
+# EKF Initialization
+mu_initial = np.zeros(n)  # Mean of initial guess for state
+mu_initial[n - 1] = 1  # Guesses that the quadcopter starts stationary at the origin and has a payload of mass 1 kg
+Sigma_initial = 0.1 * np.identity(9)  # Covariance of initial guess for state
+
 def Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_initial, loaded, m_p_var, filter):
 
     [A, C] = Jacobian()
@@ -202,6 +251,7 @@ def Confidence(upper_conf_int, lower_conf_int, mu_t_t, Sigma_t_t, i):
     return upper_conf_int, lower_conf_int
 
 def SymbolicFuncs():
+
     x = sp.symbols('x')
     z = sp.symbols('z')
     theta = sp.symbols('theta')
@@ -210,40 +260,52 @@ def SymbolicFuncs():
     z_dot = sp.symbols('z_dot')
     theta_dot = sp.symbols('theta_dot')
     phi_dot = sp.symbols('phi_dot')
-    m_p = sp.symbols('m_p')
 
     u1 = sp.symbols('u1')
     u2 = sp.symbols('u2')
 
     # inputs to all function interfaces
-    states_n = sp.Array([x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, m_p])
+    states_n = sp.Array([x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot])
     controls_m = sp.Array([u1, u2])
 
     # full dynamics
-    eqn1 = x + dt * x_dot
-    eqn2 = z + dt * z_dot
-    eqn3 = theta + dt * theta_dot
-    eqn4 = phi + dt * phi_dot
-    eqn5 = x_dot + dt * ((m_Q + m_p * (sp.cos(phi)) ** 2) / (m_Q * (m_Q + m_p)) * u1 * sp.sin(theta) + (
-                m_p * sp.sin(phi) * sp.cos(phi)) / (m_Q * (m_Q + m_p)) * u1 * sp.cos(theta) + (
-                                     m_p * l * phi_dot ** 2 * sp.sin(phi)) / (m_Q + m_p))
-    eqn6 = z_dot + dt * ((m_Q + m_p * (sp.sin(phi)) ** 2) / (m_Q * (m_Q + m_p)) * u1 * sp.cos(theta) + (
-                m_p * sp.sin(phi) * sp.cos(phi)) / (m_Q * (m_Q + m_p)) * u1 * sp.sin(theta) - (
-                                     m_p * l * phi_dot ** 2 * sp.cos(phi)) / (m_Q + m_p) - grav)
-    eqn7 = theta_dot + dt * u2 / I_yy
-    eqn8 = phi_dot - dt * u1 * sp.sin(phi - theta) / (m_Q * l)
-    eqn9 = m_p
+    eqn1_full = x + dt * x_dot
+    eqn2_full = z + dt * z_dot
+    eqn3_full = theta + dt * theta_dot
+    eqn4_full = phi + dt * phi_dot
+    eqn5_full = x_dot + dt * ((m_Q + m_P * (sp.cos(phi)) ** 2) / (m_Q * (m_Q + m_P)) * u1 * sp.sin(theta) + (
+                m_P * sp.sin(phi) * sp.cos(phi)) / (m_Q * (m_Q + m_P)) * u1 * sp.cos(theta) + (
+                                     m_P * l * phi_dot ** 2 * sp.sin(phi)) / (m_Q + m_P))
+    eqn6_full = z_dot + dt * ((m_Q + m_P * (sp.sin(phi)) ** 2) / (m_Q * (m_Q + m_P)) * u1 * sp.cos(theta) + (
+                m_P * sp.sin(phi) * sp.cos(phi)) / (m_Q * (m_Q + m_P)) * u1 * sp.sin(theta) - (
+                                     m_P * l * phi_dot ** 2 * sp.cos(phi)) / (m_Q + m_P) - grav)
+    eqn7_full = theta_dot + dt * u2 / I_yy
+    eqn8_full = phi_dot - dt * u1 * sp.sin(phi - theta) / (m_Q * l)
 
-    f_full = sp.Matrix([eqn1, eqn2, eqn3, eqn4, eqn5, eqn6, eqn7, eqn8, eqn9])
+    # unloaded
+    eqn1_un = x + dt * x_dot
+    eqn2_un = z + dt * z_dot
+    eqn3_un = theta + dt * theta_dot
+    eqn4_un = 0
+    eqn5_un = x_dot + dt * u1 * sp.sin(theta) / m_Q
+    eqn6_un = z_dot + dt * u1 * sp.cos(theta) / m_Q
+    eqn7_un = theta_dot + dt * u2 / I_yy
+    eqn8_un = 0
+
+    f_full = sp.Matrix([eqn1_full, eqn2_full, eqn3_full, eqn4_full, eqn5_full, eqn6_full, eqn7_full, eqn8_full])
+    f_un = sp.Matrix([eqn1_un, eqn2_un, eqn3_un, eqn4_un, eqn5_un, eqn6_un, eqn7_un, eqn8_un])
     g = sp.Matrix([x, z, theta])
 
-    A = sp.simplify(f_full.jacobian(states_n))
+    A_full = sp.simplify(f_full.jacobian(states_n))
+    A_un = sp.simplify(f_un.jacobian(states_n))
     C = sp.simplify(g.jacobian(states_n))
 
     return {
         "f_full": sp.lambdify([states_n, controls_m], f_full),
+        "f_un": sp.lambdify([states_n, controls_m], f_un),
         "g": sp.lambdify([states_n], g),
-        "A": sp.lambdify([states_n, controls_m], A),
+        "A_full": sp.lambdify([states_n, controls_m], A_full),
+        "A_un": sp.lambdify([states_n, controls_m], A_un),
         "C": sp.lambdify([states_n], C),
     }
 
@@ -288,55 +350,6 @@ def Jacobian():
     return A, C
 
 if __name__== "__main__":
-
-    # Simulation settings
-    dt = 0.01  # Simulation time step - sec
-    t_final = 1  # Simulation run time - sec
-    steps = round(t_final / dt)  # Number of simulation ssteps
-    t = np.zeros(steps + 1)  # Initializes time vector
-
-    # Noise
-    Q_t = 0.001 * np.identity(9)  # Process noise
-    R_t = 0.001 * np.identity(3)  # Measurement noise
-
-    # Initialization
-    # System
-    m = 3
-    n = 9
-
-    # Parameters
-    m_Q = 5
-    m_P = 2
-    I_yy = 0.01
-    grav = 9.81
-    l = 1
-
-    # Dynamics
-    state_initial = np.zeros(n)
-    state_initial[n - 1] = m_P  # Starts at origin with flat orientation and mass hanging straight down
-
-    # List of states-
-    # 0 - x
-    # 1 - z
-    # 2 - theta
-    # 3 - phi
-    # 4 - xdot
-    # 5 - zdot
-    # 6 - thetadot
-    # 7 - phidot
-    # 8 - mp
-
-    # Control
-    thrust_initial = (m_Q + m_P) * grav  # The initial control output is currently set to a hovering thrust
-    tau_initial = 0
-    control_initial = np.zeros(2)
-    control_initial[0] = thrust_initial
-    control_initial[1] = tau_initial
-
-    # EKF Initialization
-    mu_initial = np.zeros(n)  # Mean of initial guess for state
-    mu_initial[n - 1] = 1  # Guesses that the quadcopter starts stationary at the origin and has a payload of mass 1 kg
-    Sigma_initial = 0.1 * np.identity(9)  # Covariance of initial guess for state
 
     # Simulation loop
     [state, control, y, mu_t_t, Sigma_t_t, upper_conf_int, lower_conf_int] = Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_initial, 1, 1, 1)
