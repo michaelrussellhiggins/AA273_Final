@@ -37,7 +37,7 @@ def animate_2D_quad(t, state, full_system = 1, frameDelay = 30):
     θ = -state[:,2]
 
     if full_system:
-      ϕ = state[:,3]
+      ϕ = -state[:,3]
     else:
       ϕ = np.zeros(x.shape)
 
