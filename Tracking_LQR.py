@@ -41,7 +41,9 @@ def Jacobians(s: np.ndarray, u: np.ndarray, dt: float, quad):
     return df_ds, df_du
 
 # Compute deviation variable gain matrix
-def LQR_tracking_gain(s_goal: np.ndarray, u_goal: np.ndarray, dt: float, quad):
+def LQR_tracking_gain(s_goal: np.ndarray, dt: float, quad):
+    # Hover at final desired state
+    u_goal = np.array([(quad.m_Q*quad.g/2),(quad.m_Q*quad.g/2)])
     # Deviation cost matrices
     Q_LQR = np.diag([1e3, 1e3, 1e3, 1e3, 1e3, 1e3])  # state deviation cost matrix
     R_LQR = 1e-3*np.eye(2)                           # control deviation cost matrix
