@@ -5,55 +5,6 @@ import random
 from scipy.stats import multivariate_normal
 import matplotlib.pyplot as plt
 
-# Simulation settings
-dt = 0.01   # Simulation time step - sec
-t_final = 1   # Simulation run time - sec
-steps = round(t_final/dt)   #Number of simulation ssteps
-t = np.zeros(steps+1)   # Initializes time vector
-
-# Noise
-Q_t = 0.001*np.identity(9)   # Process noise
-R_t = 0.001*np.identity(3)   # Measurement noise
-
-# Initialization
-# System
-m = 3
-n = 9
-
-#Parameters
-m_Q = 5
-m_P = 2
-I_yy = 0.01
-grav = 9.81
-l = 1
-
-#Dynamics
-state_initial = np.zeros(n)
-state_initial[n-1] = m_P  # Starts at origin with flat orientation and mass hanging straight down
-
-# List of states-
-# 0 - x
-# 1 - z
-# 2 - theta
-# 3 - phi
-# 4 - xdot
-# 5 - zdot
-# 6 - thetadot
-# 7 - phidot
-# 8 - mp
-
-# Control
-thrust_initial = (m_Q + m_P)*grav  # The initial control output is currently set to a hovering thrust
-tau_initial = 0
-control_initial = np.zeros(2)
-control_initial[0] = thrust_initial
-control_initial[1] = tau_initial
-
-# EKF Initialization
-mu_initial = np.zeros(n)   # Mean of initial guess for state
-mu_initial[n-1] = 1   # Guesses that the quadcopter starts stationary at the origin and has a payload of mass 1 kg
-Sigma_initial = 0.1*np.identity(9)   # Covariance of initial guess for state
-
 def Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_initial, loaded, m_p_var, filter):
 
     [A, C] = Jacobian()
@@ -290,17 +241,66 @@ def Jacobian():
 
     return A, C
 
-# Simulation loop
+if __name__== "__main__":
 
-[state, control, y, mu_t_t, Sigma_t_t, upper_conf_int, lower_conf_int] = Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_initial, 1, 1, 1)
+    # Simulation settings
+    dt = 0.01  # Simulation time step - sec
+    t_final = 1  # Simulation run time - sec
+    steps = round(t_final / dt)  # Number of simulation ssteps
+    t = np.zeros(steps + 1)  # Initializes time vector
 
-# Plots
+    # Noise
+    Q_t = 0.001 * np.identity(9)  # Process noise
+    R_t = 0.001 * np.identity(3)  # Measurement noise
 
-plt.figure(1)
-plt.plot(t, state[:, 1], label='True')
-plt.plot(t, mu_t_t[:, 1], label='Belief')
-plt.fill_between(t, upper_conf_int[:, 1], lower_conf_int[:, 1], color='green', alpha=0.5, label='95% Confidence Interval')
-plt.xlabel('Time (sec)')
-plt.ylabel('Position in z (m)')
-plt.legend()
-plt.show()
+    # Initialization
+    # System
+    m = 3
+    n = 9
+
+    # Parameters
+    m_Q = 5
+    m_P = 2
+    I_yy = 0.01
+    grav = 9.81
+    l = 1
+
+    # Dynamics
+    state_initial = np.zeros(n)
+    state_initial[n - 1] = m_P  # Starts at origin with flat orientation and mass hanging straight down
+
+    # List of states-
+    # 0 - x
+    # 1 - z
+    # 2 - theta
+    # 3 - phi
+    # 4 - xdot
+    # 5 - zdot
+    # 6 - thetadot
+    # 7 - phidot
+    # 8 - mp
+
+    # Control
+    thrust_initial = (m_Q + m_P) * grav  # The initial control output is currently set to a hovering thrust
+    tau_initial = 0
+    control_initial = np.zeros(2)
+    control_initial[0] = thrust_initial
+    control_initial[1] = tau_initial
+
+    # EKF Initialization
+    mu_initial = np.zeros(n)  # Mean of initial guess for state
+    mu_initial[n - 1] = 1  # Guesses that the quadcopter starts stationary at the origin and has a payload of mass 1 kg
+    Sigma_initial = 0.1 * np.identity(9)  # Covariance of initial guess for state
+
+    # Simulation loop
+    [state, control, y, mu_t_t, Sigma_t_t, upper_conf_int, lower_conf_int] = Simulation(steps, dt, state_initial, control_initial, mu_initial, Sigma_initial, 1, 1, 1)
+
+    # Plots
+    plt.figure(1)
+    plt.plot(t, state[:, 1], label='True')
+    plt.plot(t, mu_t_t[:, 1], label='Belief')
+    plt.fill_between(t, upper_conf_int[:, 1], lower_conf_int[:, 1], color='green', alpha=0.5,label='95% Confidence Interval')
+    plt.xlabel('Time (sec)')
+    plt.ylabel('Position in z (m)')
+    plt.legend()
+    plt.show()
