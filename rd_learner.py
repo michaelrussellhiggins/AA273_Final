@@ -100,11 +100,15 @@ class RDLearner:
                          self.model.likelihood.trainable_variables + \
                          self.model.inducing_variable.trainable_variables
 
-    def optimize(self, num_iter: int) -> np.ndarray:
+    def optimize(self,
+        num_iter: int,
+        adam_lr: float = 1e-2,
+        nat_lr: float = 5e-2,
+    ) -> np.ndarray:
         losses = np.zeros(num_iter)
 
-        adam_opt = tfk.optimizers.Adam(0.01)
-        nat_opt = gpf.optimizers.NaturalGradient(gamma=0.1)
+        adam_opt = tfk.optimizers.Adam(adam_lr)
+        nat_opt = gpf.optimizers.NaturalGradient(gamma=nat_lr)
 
         @tf.function
         def train_step(train_iter: tf.data.Iterator):
@@ -135,11 +139,14 @@ class RDLearner:
         return outputs_n, cov_nn
 
     def add_data(self,
-        states_tn: TensorType,
-        controls_tm: TensorType,
+        states_tn: np.ndarray,
+        controls_tm: np.ndarray,
         relearn_iter: T.Optional[int] = None,
     ) -> T.Optional[np.ndarray]:
-        next_states_tn = self.nominal_model(states_tn, controls_tm)
+        next_states_tn = np.zeros_like(states_tn)
+        for i in range(states_tn.shape[0]):
+            next_states_tn[i] = self.nominal_model(states_tn[i], controls_tm[i])
+
         residual_tp = states_tn[1:] - next_states_tn[:-1]
 
         X_new = np.concatenate([states_tn, controls_tm], axis=-1)[:-1]
