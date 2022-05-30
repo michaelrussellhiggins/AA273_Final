@@ -19,7 +19,7 @@ def Jacobians(s: np.ndarray, u: np.ndarray, dt: float, quad):
     """Calculate state and control Jacobians around (s*,u*)."""
     state_dim = s.shape[0]
     control_dim = u.shape[0]
-    m, Iyy, d = quad.m_Q, quad.Iyy, quad.l
+    m, Iyy, d = quad.m_Q, quad.Iyy, quad.d
     x, z, theta, v_x, v_y, omega = s
     T1, T2 = u
 
@@ -37,7 +37,7 @@ def Jacobians(s: np.ndarray, u: np.ndarray, dt: float, quad):
     df_du[4,1] = dt*np.cos(theta) / m
     df_du[5,0] = dt*d / Iyy
     df_du[5,1] = -dt*d / Iyy
- 
+
     return df_ds, df_du
 
 # Compute deviation variable gain matrix
@@ -47,7 +47,7 @@ def LQR_tracking_gain(s_goal: np.ndarray, dt: float, quad):
     # Deviation cost matrices
     Q_LQR = np.diag([1e3, 1e3, 1e3, 1e3, 1e3, 1e3])  # state deviation cost matrix
     R_LQR = 1e-3*np.eye(2)                           # control deviation cost matrix
-    
+
     # Initialize cost-to-go matrix to 0
     P_inf = np.zeros_like(Q_LQR)
 
@@ -63,7 +63,7 @@ def LQR_tracking_gain(s_goal: np.ndarray, dt: float, quad):
         # maximum element-wise norm condition ||P_k+1 - P_k||_max < 1e-4
         if np.all(np.absolute(P_next - P) < 1e-5):
             not_converged = False
-        
+
         # Update cost-to-go matrix for next loop
         P_next = deepcopy(P)
 
@@ -82,6 +82,6 @@ def generate_control(s0: np.ndarray, s_goal: np.ndarray, K: np.ndarray, quad):
     # Convert propeller [Thrust 1, Thrust 2] -> [Force, Torque]
     u = np.zeros((2,1))
     u[0] = u_prop[0] + u_prop[1]
-    u[1] = (u_prop[0] - u_prop[2]) * quad.d
+    u[1] = (u_prop[0] - u_prop[1]) * quad.d
 
     return u

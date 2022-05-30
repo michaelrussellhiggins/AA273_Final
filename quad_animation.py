@@ -12,18 +12,16 @@ import matplotlib.patches as mpatches
 import matplotlib.transforms as mtransforms
 import matplotlib.animation as animation
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 def animate_2D_quad(t, state, full_system = 1, frameDelay = 30):
     """Animate the planar quadrotor system from given position data.
-       
+
        Input Arguments:
-       state(n,8):  assumes the first four columns are x, z, θ, and ϕ 
-                    (i.e., x-position, z-position, pitch angle, 
+       state(n,8):  assumes the first four columns are x, z, θ, and ϕ
+                    (i.e., x-position, z-position, pitch angle,
                     pendulum angle) in that order.
-       
+
        full_system (boolean): true - quad+payload; false - quad only
 
        frameDelay (optional input): animation delay per frame in milliseconds
@@ -90,19 +88,19 @@ def animate_2D_quad(t, state, full_system = 1, frameDelay = 30):
                                   prop_width, prop_height,
                                   facecolor='tab:gray', edgecolor='k',
                                   alpha=0.7)
-        
+
     patches = (rod, hub, axle_left, axle_right, prop_left, prop_right)
 
     # Pendulum Artists
-    pole = mpatches.Arrow(0., 0., 0., -pole_length, width=pole_thick, 
+    pole = mpatches.Arrow(0., 0., 0., -pole_length, width=pole_thick,
                               facecolor='tab:brown', edgecolor='k')
-    ball = mpatches.Circle((0., -pole_length), radius=ball_radius, 
+    ball = mpatches.Circle((0., -pole_length), radius=ball_radius,
                            facecolor='tab:orange', edgecolor='k')
 
     # Add patches to axis
     for patch in patches:
         ax.add_patch(patch)
-    
+
     if full_system:
       ax.add_patch(pole)
       ax.add_patch(ball)
@@ -120,18 +118,18 @@ def animate_2D_quad(t, state, full_system = 1, frameDelay = 30):
         transformQuad += ax.transData
         for patch in patches:
             patch.set_transform(transformQuad)
-        
+
         if full_system:
             # Pole translation and rotation
             transformPole = mtransforms.Affine2D().rotate_around(0., 0., ϕ[k])
             transformPole += mtransforms.Affine2D().translate(x[k], z[k])
             transformPole += ax.transData
-            
+
             pole.set_transform(transformPole)
 
             # Payload translation and rotation
             transformBall = mtransforms.Affine2D().rotate_around(0., 0., ϕ[k])
-            transformBall += mtransforms.Affine2D().translate(x[k], z[k])        
+            transformBall += mtransforms.Affine2D().translate(x[k], z[k])
             transformBall += ax.transData
 
             ball.set_transform(transformBall)
@@ -139,7 +137,7 @@ def animate_2D_quad(t, state, full_system = 1, frameDelay = 30):
         # Trace and time stamp animation
         trace.set_data(x[:k+1], z[:k+1])
         timestamp.set_text('t = {:.1f} s'.format(t[k]))
-        
+
         # Consolidate artists
         artists = patches + (trace, timestamp)
         if full_system:

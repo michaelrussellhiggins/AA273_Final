@@ -26,6 +26,7 @@ m_P = 2
 I_yy = 0.01
 grav = 9.81
 l = 1
+phi_b = 3.
 
 # Dynamics
 state_initial = np.zeros(n)
@@ -280,7 +281,7 @@ def SymbolicFuncs():
                 m_P * sp.sin(phi) * sp.cos(phi)) / (m_Q * (m_Q + m_P)) * u1 * sp.sin(theta) - (
                                      m_P * l * phi_dot ** 2 * sp.cos(phi)) / (m_Q + m_P) - grav)
     eqn7_full = theta_dot + dt * u2 / I_yy
-    eqn8_full = phi_dot - dt * u1 * sp.sin(phi - theta) / (m_Q * l)
+    eqn8_full = phi_dot - dt * u1 * sp.sin(phi - theta) / (m_Q * l) - dt * phi_b * (phi_dot + theta_dot)
 
     # unloaded
     eqn1_un = x + dt * x_dot
@@ -335,7 +336,7 @@ def Jacobian():
                 m_p * sp.sin(phi) * sp.cos(phi)) / (m_Q * (m_Q + m_p)) * u1 * sp.sin(theta) - (
                                      m_p * l * phi_dot ** 2 * sp.cos(phi)) / (m_Q + m_p) - grav)
     eqn7 = theta_dot + dt * u2 / I_yy
-    eqn8 = phi_dot - dt * u1 * sp.sin(phi - theta) / (m_Q * l)
+    eqn8 = phi_dot - dt * u1 * sp.sin(phi - theta) / (m_Q * l) - dt * phi_b * (phi_dot + theta_dot)
     eqn9 = m_p
 
     F = sp.Matrix([eqn1, eqn2, eqn3, eqn4, eqn5, eqn6, eqn7, eqn8, eqn9])
