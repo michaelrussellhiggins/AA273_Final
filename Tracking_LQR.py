@@ -69,3 +69,27 @@ def LQR_tracking_gain(s_goal: np.ndarray, dt: float, quad):
 
     # Infinite horizon deviation variable gain matrix
     return K
+
+# Generate Force and Torque control for unloaded quadrotor
+def generate_control(s0: np.ndarray, s_goal: np.ndarray, dt: float, quad):
+    # Infinite Horizon feedback gain
+    K = LQR_tracking_gain(s_goal, dt, quad)
+
+    # State deviation variable
+    delta_s = s0 - s_goal
+
+    # Control law [Thrust 1, Thrust 2]
+    u_prop = K @ delta_s
+
+    # Convert propeller [Thrust 1, Thrust 2] -> [Force, Torque]
+    u = np.zeros((2,1))
+    u[0] = u_prop[0] + u_prop[1]
+    u[1] = (u_prop[0] - u_prop[2]) * quad.l
+
+    return u
+
+
+
+
+
+    
