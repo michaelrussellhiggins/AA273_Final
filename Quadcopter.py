@@ -26,7 +26,7 @@ m_P = 2
 I_yy = 0.01
 grav = 9.81
 l = 1
-phi_b = 2.
+phi_b = 1.5
 
 # Dynamics
 state_initial = np.zeros(n)
@@ -287,11 +287,11 @@ def SymbolicFuncs():
     eqn1_un = x + dt * x_dot
     eqn2_un = z + dt * z_dot
     eqn3_un = theta + dt * theta_dot
-    eqn4_un = 0
+    eqn4_un = phi + dt * phi_dot
     eqn5_un = x_dot + dt * u1 * sp.sin(theta) / m_Q
-    eqn6_un = z_dot + dt * u1 * sp.cos(theta) / m_Q
+    eqn6_un = z_dot + dt * u1 * sp.cos(theta) / m_Q - dt * grav
     eqn7_un = theta_dot + dt * u2 / I_yy
-    eqn8_un = 0
+    eqn8_un = phi_dot
 
     f_full = sp.Matrix([eqn1_full, eqn2_full, eqn3_full, eqn4_full, eqn5_full, eqn6_full, eqn7_full, eqn8_full])
     f_un = sp.Matrix([eqn1_un, eqn2_un, eqn3_un, eqn4_un, eqn5_un, eqn6_un, eqn7_un, eqn8_un])
@@ -308,6 +308,50 @@ def SymbolicFuncs():
         "A_full": sp.lambdify([states_n, controls_m], A_full),
         "A_un": sp.lambdify([states_n, controls_m], A_un),
         "C": sp.lambdify([states_n], C),
+    }
+
+def SymbolicFuncsWithMass():
+    x = sp.symbols('x')
+    z = sp.symbols('z')
+    theta = sp.symbols('theta')
+    phi = sp.symbols('phi')
+    x_dot = sp.symbols('x_dot')
+    z_dot = sp.symbols('z_dot')
+    theta_dot = sp.symbols('theta_dot')
+    phi_dot = sp.symbols('phi_dot')
+    m_p = sp.symbols('m_p')
+
+    u1 = sp.symbols('u1')
+    u2 = sp.symbols('u2')
+
+    eqn1 = x + dt * x_dot
+    eqn2 = z + dt * z_dot
+    eqn3 = theta + dt * theta_dot
+    eqn4 = phi + dt * phi_dot
+    eqn5 = x_dot + dt * ((m_Q + m_p * (sp.cos(phi)) ** 2) / (m_Q * (m_Q + m_p)) * u1 * sp.sin(theta) + (
+                m_p * sp.sin(phi) * sp.cos(phi)) / (m_Q * (m_Q + m_p)) * u1 * sp.cos(theta) + (
+                                     m_p * l * phi_dot ** 2 * sp.sin(phi)) / (m_Q + m_p))
+    eqn6 = z_dot + dt * ((m_Q + m_p * (sp.sin(phi)) ** 2) / (m_Q * (m_Q + m_p)) * u1 * sp.cos(theta) + (
+                m_p * sp.sin(phi) * sp.cos(phi)) / (m_Q * (m_Q + m_p)) * u1 * sp.sin(theta) - (
+                                     m_p * l * phi_dot ** 2 * sp.cos(phi)) / (m_Q + m_p) - grav)
+    eqn7 = theta_dot + dt * u2 / I_yy - dt * phi_b * (theta_dot - phi_dot)
+    eqn8 = phi_dot - dt * u1 * sp.sin(phi - theta) / (m_Q * l) - dt * phi_b * (phi_dot - theta_dot)
+    eqn9 = m_p
+
+    X = sp.Array([x, z, theta, phi, x_dot, z_dot, theta_dot, phi_dot, m_p])
+    U = sp.Array([u1, u2])
+
+    F = sp.Matrix([eqn1, eqn2, eqn3, eqn4, eqn5, eqn6, eqn7, eqn8, eqn9])
+    G = sp.Matrix([x, z, theta, phi])
+
+    A = sp.simplify(F.jacobian(X))
+    C = sp.simplify(G.jacobian(X))
+
+    return {
+        "f": sp.lambdify([X, U], F),
+        "A": sp.lambdify([X, U], A),
+        "g": sp.lambdify([X], G),
+        "C": sp.lambdify([X], C),
     }
 
 def Jacobian():
